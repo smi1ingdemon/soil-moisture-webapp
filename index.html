@@ -74,67 +74,87 @@
   </table>
 
   <script>
-    const sheetUrl = "https://opensheet.elk.sh/1DqgKlbmo6_Wk0liiU-ztIDbzMh3NiVLkf0pA57t8pUI/Sheet1"; // change this to yours
-    const tbody = document.getElementById("data-body");
-    const gaugeFill = document.getElementById("gauge-fill");
-    const gaugeLabel = document.getElementById("gauge-label");
+  const sheetUrl = "https://opensheet.elk.sh/1DqgKlbmo6_Wk0liiU-ztIDbzMh3NiVLkf0pA57t8pUI/Sheet1";
+  const tbody = document.getElementById("data-body");
+  const gaugeFill = document.getElementById("gauge-fill");
+  const gaugeLabel = document.getElementById("gauge-label");
 
-    const ctx = document.getElementById('moistureChart').getContext('2d');
-    const chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Moisture %',
-          data: [],
-          borderColor: 'green',
-          backgroundColor: 'rgba(76, 175, 80, 0.2)',
-          tension: 0.3,
-        }]
-      },
-      options: {
-        scales: {
-          y: {
-            min: 0,
-            max: 100
-          }
+  const ctx = document.getElementById('moistureChart').getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Moisture %',
+        data: [],
+        borderColor: 'green',
+        backgroundColor: 'rgba(76, 175, 80, 0.2)',
+        tension: 0.3,
+      }]
+    },
+    options: {
+      animation: false,
+      scales: {
+        y: {
+          min: 0,
+          max: 100
         }
       }
-    });
+    }
+  });
 
-    async function fetchData() {
+  async function fetchData() {
+    try {
       const res = await fetch(sheetUrl);
       const data = await res.json();
 
+      if (!Array.isArray(data)) return;
+
+      const recent = data.slice(-20).reverse();
+
+      // Clear and update table
       tbody.innerHTML = "";
-
-      const latest = data[data.length - 1]; // last row
-      const recent = data.slice(-20);
-
-      // Update table
-      recent.reverse().forEach(row => {
+      recent.forEach(row => {
         const tr = document.createElement("tr");
+        const moistureRaw = parseInt(row.moisture || row.Moisture || 0);
+        const percent = row.percent || row.Percent || Math.round((moistureRaw / 4095) * 100); // fallback
+        const ts = row.timestamp || row.Time;
+
         tr.innerHTML = `
-          <td>${row.timestamp || row.Time}</td>
-          <td>${row.moisture || row.Moisture}</td>
-          <td>${row.percent || row.Percent}</td>
+          <td>${ts}</td>
+          <td>${moistureRaw}</td>
+          <td>${percent}</td>
         `;
         tbody.appendChild(tr);
       });
 
-      // Update gauge
-      const percent = parseInt(latest.percent || latest.Percent || 0);
-      gaugeFill.style.transform = `scaleY(${percent / 100})`;
-      gaugeLabel.innerText = `Moisture: ${percent}%`;
+      // Gauge update
+      const latest = recent[0];
+      const gaugePercent = parseInt(latest.percent || latest.Percent || 0);
+      gaugeFill.style.transform = `scaleY(${gaugePercent / 100})`;
+      gaugeLabel.innerText = `Moisture: ${gaugePercent}%`;
 
-      // Update chart
-      chart.data.labels = recent.map(r => new Date(parseInt(r.timestamp) * 1000).toLocaleTimeString());
-      chart.data.datasets[0].data = recent.map(r => parseInt(r.percent || r.Percent));
+      // Chart update
+      chart.data.labels = recent.map(r => {
+        const ts = r.timestamp || r.Time;
+        if (ts.includes("/")) return ts.split(" ")[1] || ts; // if it's like "06/06/2025 11:44:00"
+        return new Date(ts).toLocaleTimeString(); // fallback
+      });
+
+      chart.data.datasets[0].data = recent.map(r =>
+        parseInt(r.percent || r.Percent || (parseInt(r.moisture || r.Moisture || 0) / 4095 * 100))
+      );
+
       chart.update();
+    } catch (err) {
+      console.error("Failed to fetch data:", err);
     }
+  }
 
-    fetchData();
-    setInterval(fetchData, 5000); // refresh every 5 seconds
-  </script>
+  // Run on load and every 5 sec
+  fetchData();
+  setInterval(fetchData, 5000);
+</script>
+
 </body>
 </html>
