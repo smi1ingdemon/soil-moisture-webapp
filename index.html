@@ -12,25 +12,37 @@
       background: #f7f7f7;
       text-align: center;
     }
-    #gauge-container {
-      width: 200px;
-      height: 100px;
-      background: #ddd;
-      border-radius: 100px 100px 0 0;
-      overflow: hidden;
-      margin: 0 auto 20px;
-      position: relative;
-    }
-    #gauge-fill {
-      background: #4CAF50;
-      width: 100%;
-      height: 100%;
-      position: absolute;
-      bottom: 0;
-      transform-origin: bottom;
-      transform: scaleY(0);
-      transition: transform 0.5s ease-in-out;
-    }
+  
+  #gauge-container {
+    width: 60px;
+    height: 200px;
+    border: 4px solid #4CAF50;
+    border-radius: 10px;
+    position: relative;
+    margin: 20px auto;
+    background: #fff;
+    box-shadow: inset 0 0 10px #ccc;
+  }
+
+  #gauge-fill {
+    background: #4CAF50;
+    width: 100%;
+    position: absolute;
+    bottom: 0;
+    height: 0%;
+    transition: height 0.4s ease-in-out;
+  }
+
+  #gauge-tip {
+    width: 30px;
+    height: 10px;
+    background: #4CAF50;
+    margin: 0 auto;
+    border-radius: 3px;
+    margin-bottom: -10px;
+  }
+
+    
     #gauge-label {
       margin-top: 10px;
       font-size: 20px;
@@ -130,22 +142,50 @@
 
       // Gauge update
       const latest = recent[0];
-      const gaugePercent = parseInt(latest.percent || latest.Percent || 0);
-      gaugeFill.style.transform = `scaleY(${gaugePercent / 100})`;
+      let gaugePercent = latest.percent || latest.Percent;
+
+      if (!gaugePercent && latest.moisture) {
+        gaugePercent = Math.round((parseInt(latest.moisture) / 4095) * 100);
+      }
+
+      if (typeof gaugePercent === "string") {
+        gaugePercent = gaugePercent.replace("%", "").trim();
+      }
+      gaugePercent = parseFloat(gaugePercent);
+      if (isNaN(gaugePercent)) gaugePercent = 0;
+
+      gaugeFill.style.height = `${gaugePercent}%`;
       gaugeLabel.innerText = `Moisture: ${gaugePercent}%`;
 
+
+
+      // Chart update
       // Chart update
       chart.data.labels = recent.map(r => {
-        const ts = r.timestamp || r.Time;
-        if (ts.includes("/")) return ts.split(" ")[1] || ts; // if it's like "06/06/2025 11:44:00"
-        return new Date(ts).toLocaleTimeString(); // fallback
+        let ts = r.timestamp || r.Time || "";
+        if (ts.includes("/")) {
+          return ts.split(" ")[1] || ts; // extract time if format is "DD/MM/YYYY HH:MM:SS"
+        }
+        const dateObj = new Date(ts);
+        return isNaN(dateObj.getTime()) ? ts : dateObj.toLocaleTimeString(); // fallback
       });
 
-      chart.data.datasets[0].data = recent.map(r =>
-        parseInt(r.percent || r.Percent || (parseInt(r.moisture || r.Moisture || 0) / 4095 * 100))
-      );
+      chart.data.datasets[0].data = recent.map(r => {
+        let percent = r.percent || r.Percent;
+        if (!percent && r.moisture) {
+          percent = Math.round((parseInt(r.moisture) / 4095) * 100);
+        }
+        if (typeof percent === "string") {
+          percent = percent.replace("%", "").trim();
+        }
+        percent = parseFloat(percent);
+        return isNaN(percent) ? 0 : percent;
+      });
+      chart.data.labels = chart.data.labels.slice(0, 20);
+        chart.data.datasets[0].data = chart.data.datasets[0].data.slice(0, 20);
 
       chart.update();
+
     } catch (err) {
       console.error("Failed to fetch data:", err);
     }
@@ -153,6 +193,7 @@
 
   // Run on load and every 5 sec
   fetchData();
+  
   setInterval(fetchData, 5000);
 </script>
 
