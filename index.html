@@ -156,7 +156,8 @@
         recent.forEach(row => {
           const tr = document.createElement("tr");
           const moistureRaw = parseInt(row.moisture || row.Moisture || 0);
-          const percent = row.percent || row.Percent || Math.round((moistureRaw / 4095) * 100);
+          const percent = parseFloat(row["Percent"] || row.percent || 0);
+;
           const ts = row.timestamp || row.Time;
 
           tr.innerHTML = `
@@ -195,7 +196,8 @@
         });
 
         chart.data.datasets[0].data = recent.map(r => {
-          let percent = r.percent || r.Percent;
+          let percent = parseFloat(r["Percent"] || r.percent || 0);
+
           if (!percent && r.moisture) {
             percent = Math.round((parseInt(r.moisture) / 4095) * 100);
           }
