@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Soil Moisture Dashboard 🌱</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -39,6 +40,7 @@
       bottom: 0;
       height: 0%;
       transition: height 0.4s ease-in-out;
+      border-radius: 0 0 10px 10px;
     }
 
     #gauge-label {
@@ -64,12 +66,14 @@
       background: #fff;
     }
 
-    th, td {
+    th,
+    td {
       padding: 8px 12px;
       border: 1px solid #ccc;
     }
   </style>
 </head>
+
 <body>
   <h1>🌿 Live Soil Moisture Monitor</h1>
 
@@ -100,113 +104,131 @@
     <tbody id="data-body"></tbody>
   </table>
 
-<script>
-  const sheetUrl = "https://opensheet.elk.sh/1DqgKlbmo6_Wk0liiU-ztIDbzMh3NiVLkf0pA57t8pUI/Sheet1";
-  const tbody = document.getElementById("data-body");
-  const gaugeFill = document.getElementById("gauge-fill");
-  const gaugeLabel = document.getElementById("gauge-label");
+  <script>
+    const sheetUrl = "https://opensheet.elk.sh/1DqgKlbmo6_Wk0liiU-ztIDbzMh3NiVLkf0pA57t8pUI/Sheet1";
+    const tbody = document.getElementById("data-body");
+    const gaugeFill = document.getElementById("gauge-fill");
+    const gaugeLabel = document.getElementById("gauge-label");
 
-  const DRY = 2650;
-  const WET = 1200;
+    const DRY = 2650;
+    const WET = 1200;
 
-  function convertToPercent(raw) {
-    let pct = ((DRY - raw) / (DRY - WET)) * 100;
-    pct = Math.max(0, Math.min(100, pct)); // clamp between 0 and 100
-    return Math.round(pct);
-  }
+    function convertToPercent(raw) {
+      let pct = ((DRY - raw) / (DRY - WET)) * 100;
+      pct = Math.max(0, Math.min(100, pct)); // clamp between 0 and 100
+      return Math.round(pct);
+    }
 
-  const ctx = document.getElementById('moistureChart').getContext('2d');
-  const chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'Moisture %',
-        data: [],
-        borderColor: 'green',
-        backgroundColor: 'rgba(76, 175, 80, 0.2)',
-        tension: 0.3,
-      }]
-    },
-    options: {
-      animation: false,
-      scales: {
-        y: {
-          min: 0,
-          max: 100,
-          position: 'right',
-          title: {
-            display: true,
-            text: 'Moisture (%)'
-          }
-        },
-        x: {
-          reverse: false,
-          title: {
-            display: true,
-            text: 'Timestamp'
+    const ctx = document.getElementById('moistureChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Moisture %',
+          data: [],
+          borderColor: 'green',
+          backgroundColor: 'rgba(76, 175, 80, 0.2)',
+          tension: 0.3,
+        }]
+      },
+      options: {
+        animation: false,
+        scales: {
+          y: {
+            min: 0,
+            max: 100,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Moisture (%)'
+            }
+          },
+          x: {
+            reverse: false,
+            title: {
+              display: true,
+              text: 'Timestamp'
+            }
           }
         }
       }
-    }
-  });
+    });
 
-  async function fetchData() {
-    try {
-      const res = await fetch(sheetUrl);
-      const data = await res.json();
+    async function fetchData() {
+      try {
+        const res = await fetch(sheetUrl);
+        const data = await res.json();
 
-      if (!Array.isArray(data)) return;
+        if (!Array.isArray(data)) return;
 
-      const recent = data.slice(-20).reverse();
+        const recent = data.slice(-20).reverse();
 
-      // Clear and update table
-      tbody.innerHTML = "";
-      recent.forEach(row => {
-        const raw = parseInt(row.moisture || row.Moisture || 0);
-        const percent = convertToPercent(raw);
-        const ts = row.timestamp || row.Time || "";
+        // Clear and update table
+        tbody.innerHTML = "";
+        recent.forEach(row => {
+          const raw = parseInt(row.moisture || row.Moisture || 0);
+          const percent = convertToPercent(raw);
+          const ts = row.timestamp || row.Time || "";
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
           <td>${ts}</td>
           <td>${raw}</td>
           <td>${percent}%</td>
         `;
-        tbody.appendChild(tr);
-      });
+          tbody.appendChild(tr);
+        });
 
-      // Gauge
-      const latest = recent[0];
-      const latestRaw = parseInt(latest.moisture || latest.Moisture || 0);
-      const latestPercent = convertToPercent(latestRaw);
+        // Gauge
+        const latest = recent[0];
+        const latestRaw = parseInt(latest.moisture || latest.Moisture || 0);
+        const latestPercent = convertToPercent(latestRaw);
 
-      gaugeFill.style.height = `${latestPercent}%`;
-      gaugeLabel.innerText = `Moisture: ${latestPercent}%`;
+        gaugeFill.style.height = `${latestPercent}%`;
+        if (latestPercent >= 100) {
+          gaugeFill.style.borderRadius = "10px"; // round top and bottom when full
+        } else {
+          gaugeFill.style.borderRadius = "0 0 10px 10px"; // round bottom only
+        }
 
-      // Chart
-      chart.data.labels = recent.map(r => {
-        const ts = r.timestamp || r.Time || "";
-        if (ts.includes("/")) return ts.split(" ")[1] || ts;
-        const dateObj = new Date(ts);
-        return isNaN(dateObj.getTime()) ? ts : dateObj.toLocaleTimeString();
-      });
+        gaugeLabel.innerText = `Moisture: ${latestPercent}%`;
 
-      chart.data.datasets[0].data = recent.map(r => {
-        const raw = parseInt(r.moisture || r.Moisture || 0);
-        return convertToPercent(raw);
-      });
+        // Moisture color zones
+        if (latestPercent === 100) {
+          gaugeFill.style.background = "#2196F3"; // Blue (Soaked)
+        } else if (latestPercent >= 65) {
+          gaugeFill.style.background = "#4CAF50"; // Green (Kinda wet)
+        } else if (latestPercent >= 37) {
+          gaugeFill.style.background = "#FFEB3B"; // Yellow (Getting dry)
+        } else {
+          gaugeFill.style.background = "#F44336"; // Red (Bone dry)
+        }
 
-      chart.update();
 
-    } catch (err) {
-      console.error("Failed to fetch data:", err);
+        // Chart
+        chart.data.labels = recent.map(r => {
+          const ts = r.timestamp || r.Time || "";
+          if (ts.includes("/")) return ts.split(" ")[1] || ts;
+          const dateObj = new Date(ts);
+          return isNaN(dateObj.getTime()) ? ts : dateObj.toLocaleTimeString();
+        });
+
+        chart.data.datasets[0].data = recent.map(r => {
+          const raw = parseInt(r.moisture || r.Moisture || 0);
+          return convertToPercent(raw);
+        });
+
+        chart.update();
+
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+      }
     }
-  }
 
-  fetchData();
-  setInterval(fetchData, 5000);
-</script>
+    fetchData();
+    setInterval(fetchData, 5000);
+  </script>
 </body>
-</html>
 
+</html>
